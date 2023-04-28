@@ -483,9 +483,15 @@ impl<T> Iterator for Lexer<T>
 
 			// Single character token Arithmetic Divide (/)
 			// OR Double character token Arithmetic FloorDivide (//)
-			'/' => match {self.eat(); self.peek()} {
-				Some('/') => {self.eat(); Some(Ok(Token::FloorDivide))},
-				_ => Some(Ok(Token::FloorDivide))
+            '/' => match {
+                self.eat();
+                self.peek()
+            } {
+                Some('/') => {
+                    self.eat();
+                    Some(Ok(Token::FloorDivide))
+                }
+                _ => Some(Ok(Token::Divide)),
 			},
 
 			// Single character token Other Period (.)
