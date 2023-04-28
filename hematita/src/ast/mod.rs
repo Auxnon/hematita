@@ -2,12 +2,13 @@ pub mod lexer;
 pub mod parser;
 #[cfg(test)]
 pub mod tests;
+pub mod wrapped_float;
 
 use self::{lexer::Error as LexerError, parser::Error as ParserError};
 use std::{
 	error::Error as STDError,
 	fmt::{Display, Formatter, Result as FMTResult},
-	result::Result as STDResult
+    result::Result as STDResult,
 };
 
 pub type Result<T> = STDResult<T, Error>;

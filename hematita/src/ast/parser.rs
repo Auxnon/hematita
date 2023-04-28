@@ -1,6 +1,7 @@
 use self::super::{
+    lexer::{Result as LexerResult, Token},
+    wrapped_float::WrappedFloat,
 	Error as ASTError, Result,
-	lexer::{Result as LexerResult, Token}
 };
 use itertools::Itertools;
 use std::{
@@ -141,7 +142,12 @@ impl<I> TokenIterator<I>
 	fn integer(&mut self) -> i64 {
 		match self.next() {
 			Some(Ok(Token::Integer(integer))) => integer,
-			_ => unreachable!()
+        }
+    }
+    fn float(&mut self) -> f64 {
+        match self.next() {
+            Some(Ok(Token::Float(float))) => float.val,
+            _ => unreachable!(),
 		}
 	}
 
@@ -418,6 +424,7 @@ pub fn parse_expression_primary<I>(iter: &mut TokenIterator<I>)
 			parse_expression_inner(iter, Expression::Identifier(identifier))?
 		},
 		Some(Token::Integer(_)) => Expression::Integer(iter.integer()),
+        Some(Token::Float(_)) => Expression::Float(WrappedFloat::new(iter.float())),
 		Some(Token::String(_)) => Expression::String(iter.string()),
 
 		// Simple literals
@@ -1081,15 +1088,14 @@ pub enum Expression {
 	False,
 
 	// Literals
-
 	/// A literal integer.
 	Integer(i64),
+    Float(WrappedFloat),
 
 	/// A literal string.
 	String(String),
 
 	// Complicated literals
-
 	/// A literal table.
 	Table {
 		/// The array expressions of this table, expressions without a denotated
@@ -1165,8 +1171,8 @@ impl Display for Expression {
 			Self::False => write!(f, "false"),
 
 			// Literals
-
 			Self::Integer(integer) => write!(f, "{}", integer),
+            Self::Float(float) => write!(f, "{}", float.val),
 			Self::String(string) => write!(f, "{:?}", string),
 
 			// Complicated literals

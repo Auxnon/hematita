@@ -102,6 +102,7 @@ impl Generator {
 				return register
 			},
 			KnownValue::Integer(value) => Constant::Integer(value),
+            KnownValue::Float(value) => Constant::Float(value),
 			KnownValue::String(value) => Constant::String(value),
 			KnownValue::Boolean(value) => Constant::Boolean(value)
 		};
@@ -627,10 +628,11 @@ impl Generator {
 			// Literals
 
 			// Same with these.
-			Expression::Integer(integer) =>
-				CompileResult::Evaluated(KnownValue::Integer(*integer)),
-			Expression::String(string) =>
-				CompileResult::Evaluated(KnownValue::String(string.clone())),
+            Expression::Integer(integer) => CompileResult::Evaluated(KnownValue::Integer(*integer)),
+            Expression::Float(float) => CompileResult::Evaluated(KnownValue::Float(float.clone())),
+            Expression::String(string) => {
+                CompileResult::Evaluated(KnownValue::String(string.clone()))
+            }
 
 			// Complex literals
 

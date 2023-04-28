@@ -5,13 +5,16 @@ use std::{
 	result::Result as STDResult
 };
 
+use super::wrapped_float::WrappedFloat;
+
 pub type Result<T> = STDResult<T, Error>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
 	UnexpectedCharacter(char),
 	IllegalEscapeCode(char),
-	NumberTooLarge(Box<str>)
+    NumberTooLarge(Box<str>),
+    InvalidNumber(Box<str>),
 }
 
 impl STDError for Error {}
@@ -19,12 +22,12 @@ impl STDError for Error {}
 impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FMTResult {
 		match self {
-			Self::UnexpectedCharacter(character) =>
-				write!(f, "unexpected symbol {:?}", character),
-			Self::IllegalEscapeCode(character) =>
-				write!(f, "invalid escape sequence '\\{}'", character),
-			Self::NumberTooLarge(number) =>
-				write!(f, "number too large {}", number)
+            Self::UnexpectedCharacter(character) => write!(f, "unexpected symbol {:?}", character),
+            Self::IllegalEscapeCode(character) => {
+                write!(f, "invalid escape sequence '\\{}'", character)
+            }
+            Self::NumberTooLarge(number) => write!(f, "number too large {}", number),
+            Self::InvalidNumber(number) => write!(f, "invalid number {}", number),
 		}
 	}
 }
@@ -320,13 +323,34 @@ impl<T> Lexer<T>
 	/// assert_eq!(lexer.parse_number(), Some(Token::Integer(123)));
 	/// ```
 	#[cfg_attr(test, visibility::make(pub))]
-	fn parse_number(&mut self) -> Result<Token> {
-		let mut number = String::new();
-		while let Some('0'..='9') = self.peek()
-			{number.push(self.peeked_next())}
-		number.parse().map(Token::Integer)
+    fn parse_number(&mut self, leading_dot: bool) -> Result<Token> {
+        let (mut number, mut is_float) = if leading_dot {
+            (String::from("."), true)
+        } else {
+            (String::new(), false)
+        };
+        while let Some('0'..='9' | '.') = self.peek() {
+            let c = self.peeked_next();
+            if c == '.' {
+                if is_float {
+                    return Err(Error::InvalidNumber(number.into_boxed_str()));
+                }
+                is_float = true;
+            }
+            number.push(c)
+        }
+        if is_float {
+            return number
+                .parse()
+                .map(Token::Float)
+                .map_err(|_| Error::NumberTooLarge(number.into_boxed_str()));
+        } else {
+            number
+                .parse()
+                .map(Token::Integer)
 			.map_err(|_| Error::NumberTooLarge(number.into_boxed_str()))
 	}
+    }
 
 	/// Parses a comment into a token. Assumes the first characters were `--`,
 	/// and *were* consumed.
@@ -497,9 +521,16 @@ impl<T> Iterator for Lexer<T>
 			// Single character token Other Period (.)
 			// OR Double character token Other Concat (..)
 			//   OR Triple character token Other VarArgs (...) // TODO
-			'.' => match {self.eat(); self.peek()} {
-				Some('.') => {self.eat(); Some(Ok(Token::Concat))},
-				_ => Some(Ok(Token::Period))
+            '.' => match {
+                self.eat();
+                self.peek()
+            } {
+                Some('0'..='9') => Some(self.parse_number(true)),
+                Some('.') => {
+                    self.eat();
+                    Some(Ok(Token::Concat))
+                }
+                _ => Some(Ok(Token::Period)),
 			},
 
 			// Arithmetic
@@ -538,7 +569,7 @@ impl<T> Iterator for Lexer<T>
 			// Literals
 			'"' => self.parse_string(), // Double quoted strings
 			'\'' => self.parse_string(), // Single quoted strings
-			'0'..='9' => Some(self.parse_number()), // Numbers
+            '0'..='9' => Some(self.parse_number(false)), // Numbers
 			// Most other literals
 			'a'..='z' | 'A'..='Z' | '_' => Some(Ok(self.parse_identifier())),
 
@@ -594,6 +625,7 @@ pub enum Token {
 
 	/// An integer.
 	Integer(i64),
+    Float(WrappedFloat),
 
 	/// A string.
 	///
@@ -796,6 +828,7 @@ impl std::fmt::Display for Token {
 			// Literals
 			Self::Identifier(identifier) => write!(f, "{}", identifier),
 			Self::Integer(integer) => write!(f, "{}", integer),
+            Self::Float(float) => write!(f, "{}", float.val),
 			Self::String(string) => write!(f, "{:?}", string),
 
 			// Literal Values

@@ -195,7 +195,8 @@ impl<'n> Value<'n> {
 
 	pub fn type_name(&self) -> &'static str {
 		match self {
-			Self::Integer(_) => "number",
+            Self::Integer(_) => "integer",
+            Self::Float(_) => "number",
 			Self::String(_) => "string",
 			Self::Boolean(_) => "boolean",
 			Self::Table(_) => "table",
@@ -259,6 +260,7 @@ impl Display for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> FMTResult {
 		match self {
 			Self::Integer(integer) => write!(f, "{}", integer),
+            Self::Float(float) => write!(f, "{}", float),
 			Self::String(string) => write!(f, "{}", string),
 			Self::Boolean(boolean) => write!(f, "{}", boolean),
 			Self::Table(table) => write!(f, "{}", table),
@@ -273,6 +275,7 @@ impl Debug for Value<'_> {
 	fn fmt(&self, f: &mut Formatter) -> FMTResult {
 		match self {
 			Self::Integer(integer) => Debug::fmt(integer, f),
+            Self::Float(float) => Debug::fmt(float, f),
 			Self::String(string) => Debug::fmt(string, f),
 			Self::Boolean(boolean) => Debug::fmt(boolean, f),
 			Self::Table(table) => Debug::fmt(table, f),
@@ -307,6 +310,7 @@ impl Hash for Value<'_> {
 			where H: Hasher {
 		match self {
 			Self::Integer(integer) => integer.hash(state),
+            Self::Float(float) => float.to_bits().hash(state),
 			Self::String(string) => string.hash(state),
 			Self::Boolean(boolean) => boolean.hash(state),
 			Self::Table(arc) => Arc::as_ptr(arc).hash(state),
@@ -718,25 +722,40 @@ mod tests {
 
 	fn value_matches(a: &Value, b: &Value) -> bool {
 		match (a, b) {
-			(Value::Integer(a), Value::Integer(b)) =>
-				a == b,
-			(Value::String(a), Value::String(b)) =>
-				a == b,
-			(Value::Boolean(a), Value::Boolean(b)) =>
-				a == b,
-			(Value::Table(a), Value::Table(b)) =>
-				table_matches(a, b),
-			(Value::UserData {data: data_a, meta: Some(meta_a)},
-					Value::UserData {data: data_b, meta: Some(meta_b)}) =>
-				ptr_eq(data_a, data_b) && table_matches(meta_a, meta_b),
-			(Value::UserData {data: data_a, meta: None},
-					Value::UserData {data: data_b, meta: None}) =>
-				ptr_eq(data_a, data_b),
-			(Value::Function(a), Value::Function(b)) =>
-				function_matches(a, b),
-			(Value::NativeFunction(a), Value::NativeFunction(b)) =>
-				ptr_eq(*a as *const _ as *const u8, *b as *const _ as *const u8),
-			_ => false
+            (Value::Integer(a), Value::Integer(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            // TODO lossy comparison
+            (Value::Float(a), Value::Integer(b)) => a == &(*b as f64),
+            // TODO lossy comparison AND looks redundant
+            (Value::Integer(a), Value::Float(b)) => &(*a as f64) == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Table(a), Value::Table(b)) => table_matches(a, b),
+            (
+                Value::UserData {
+                    data: data_a,
+                    meta: Some(meta_a),
+                },
+                Value::UserData {
+                    data: data_b,
+                    meta: Some(meta_b),
+                },
+            ) => ptr_eq(data_a, data_b) && table_matches(meta_a, meta_b),
+            (
+                Value::UserData {
+                    data: data_a,
+                    meta: None,
+                },
+                Value::UserData {
+                    data: data_b,
+                    meta: None,
+                },
+            ) => ptr_eq(data_a, data_b),
+            (Value::Function(a), Value::Function(b)) => function_matches(a, b),
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => {
+                ptr_eq(*a as *const _ as *const u8, *b as *const _ as *const u8)
+            }
+            _ => false,
 		}
 	}
 

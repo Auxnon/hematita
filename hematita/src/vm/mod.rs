@@ -29,6 +29,8 @@ macro_rules! binary_comparison {
 			// Primitive comparisons.
 			(NonNil(Value::Integer(left)), NonNil(Value::Integer(right))) =>
 				NonNil(Value::Boolean(left $rust_op right)),
+			(NonNil(Value::Float(left)), NonNil(Value::Float(right))) =>
+				NonNil(Value::Boolean(left $rust_op right)),
 			(NonNil(Value::String(left)), NonNil(Value::String(right))) =>
 				NonNil(Value::Boolean(left $rust_op right)),
 
@@ -193,7 +195,16 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 
 				let meta = meta.data.lock().expect("poison error");
 				meta.get(&Value::new_string(method)).nillable()
-			},
+            }
+            NonNil(Value::Float(_)) => {
+                let meta = match self.virtual_machine.number_meta.as_ref() {
+                    Some(meta) => meta,
+                    None => return Nil,
+                };
+
+                let meta = meta.data.lock().expect("poison error");
+                meta.get(&Value::new_string(method)).nillable()
+            }
 			NonNil(Value::String(_)) => {
 				let meta = match self.virtual_machine.string_meta.as_ref() {
 					Some(meta) => meta,
@@ -322,8 +333,26 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 
 					// Add
 					// TODO: Handle overflow...
-					(NonNil(Value::Integer(left)), NonNil(Value::Integer(right)),
-							BinaryOperation::Add) => NonNil(Value::Integer(left + right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Add,
+                        ) => NonNil(Value::Integer(left + right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Add,
+                        ) => NonNil(Value::Float(left as f64 + right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Add,
+                        ) => NonNil(Value::Float(left + right as f64)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Add,
+                        ) => NonNil(Value::Float(left + right)),
 					(left, right, BinaryOperation::Add)
 							if self.meta_method(&left, "__add").is_non_nil() => {
 						let meta = self.meta_method(&left, "__add");
@@ -339,8 +368,26 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 
 					// Subtract
 					// TODO: Handle overflow...
-					(NonNil(Value::Integer(left)), NonNil(Value::Integer(right)),
-							BinaryOperation::Subtract) => NonNil(Value::Integer(left - right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Subtract,
+                        ) => NonNil(Value::Integer(left - right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Subtract,
+                        ) => NonNil(Value::Float(left - right as f64)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Subtract,
+                        ) => NonNil(Value::Float(left as f64 - right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Subtract,
+                        ) => NonNil(Value::Float(left - right)),
 					(left, right, BinaryOperation::Subtract)
 							if self.meta_method(&left, "__sub").is_non_nil() => {
 						let meta = self.meta_method(&left, "__sub");
@@ -356,8 +403,26 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 
 					// Multiply
 					// TODO: Handle overflow...
-					(NonNil(Value::Integer(left)), NonNil(Value::Integer(right)),
-							BinaryOperation::Multiply) => NonNil(Value::Integer(left * right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Multiply,
+                        ) => NonNil(Value::Integer(left * right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Multiply,
+                        ) => NonNil(Value::Float(left * right as f64)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Multiply,
+                        ) => NonNil(Value::Float(left as f64 * right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Multiply,
+                        ) => NonNil(Value::Float(left * right)),
 					(left, right, BinaryOperation::Multiply)
 							if self.meta_method(&left, "__mul").is_non_nil() => {
 						let meta = self.meta_method(&left, "__mul");
@@ -374,8 +439,27 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 					// Divide
 					// TODO: Handle overflow...
 					// TODO: Handle division by zero...
-					(NonNil(Value::Integer(left)), NonNil(Value::Integer(right)),
-							BinaryOperation::Divide) => NonNil(Value::Integer(left / right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Divide,
+                        ) => NonNil(Value::Float(left as f64 / right as f64)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Divide,
+                        ) => NonNil(Value::Float(left / right)),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Float(right)),
+                            BinaryOperation::Divide,
+                        ) => NonNil(Value::Float(left as f64 / right)),
+                        (
+                            NonNil(Value::Float(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Divide,
+                        ) => NonNil(Value::Float(left / right as f64)),
+
 					(left, right, BinaryOperation::Divide)
 							if self.meta_method(&left, "__div").is_non_nil() => {
 						let meta = self.meta_method(&left, "__div");
@@ -418,24 +502,33 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 					// Other
 
 					// Concat
-					(NonNil(Value::String(left)), NonNil(Value::String(right)),
-						BinaryOperation::Concat) => NonNil(Value::String(
-							format!("{}{}", left, right).into_boxed_str())),
-					(NonNil(Value::String(left)), NonNil(Value::Integer(right)),
-						BinaryOperation::Concat) => NonNil(Value::String(
-							format!("{}{}", left, right).into_boxed_str())),
-					(NonNil(Value::Integer(left)), NonNil(Value::String(right)),
-						BinaryOperation::Concat) => NonNil(Value::String(
-							format!("{}{}", left, right).into_boxed_str())),
-					(NonNil(Value::Integer(left)), NonNil(Value::Integer(right)),
-						BinaryOperation::Concat) => NonNil(Value::String(
-							format!("{}{}", left, right).into_boxed_str())),
+                        (
+                            NonNil(Value::String(left)),
+                            NonNil(Value::String(right)),
+                            BinaryOperation::Concat,
+                        ) => NonNil(Value::String(format!("{}{}", left, right).into_boxed_str())),
+                        (
+                            NonNil(Value::String(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Concat,
+                        ) => NonNil(Value::String(format!("{}{}", left, right).into_boxed_str())),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::String(right)),
+                            BinaryOperation::Concat,
+                        ) => NonNil(Value::String(format!("{}{}", left, right).into_boxed_str())),
+                        (
+                            NonNil(Value::Integer(left)),
+                            NonNil(Value::Integer(right)),
+                            BinaryOperation::Concat,
+                        ) => NonNil(Value::String(format!("{}{}", left, right).into_boxed_str())),
 					(left, right, BinaryOperation::Concat)
-							if self.meta_method(&left, "__concat").is_non_nil() => {
+                            if self.meta_method(&left, "__concat").is_non_nil() =>
+                        {
 						let meta = self.meta_method(&left, "__concat");
 						let result = self.call(meta, lua_tuple![left, right].arc())?;
 						result.index(&Value::Integer(1))
-					},
+                        }
 					(left, right, BinaryOperation::Concat)
 							if self.meta_method(&right, "__concat").is_non_nil() => {
 						let meta = self.meta_method(&right, "__concat");
@@ -544,6 +637,7 @@ impl<'v, 'f, 'n> StackFrame<'v, 'f, 'n> {
 						Some(Constant::String(string)) =>
 							NonNil(Value::String(string.into_boxed_str())),
 						Some(Constant::Integer(integer)) => NonNil(Value::Integer(integer)),
+                        Some(Constant::Float(float)) => NonNil(Value::Float(float.val)),
 						Some(Constant::Boolean(boolean)) => NonNil(Value::Boolean(boolean)),
 						Some(Constant::Chunk(chunk)) => {
 							let up_values = chunk.up_values.iter()
